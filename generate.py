@@ -6,8 +6,7 @@ import gradio as gr
 import torch
 import transformers
 from peft import PeftModel
-from transformers import GenerationConfig, LlamaForCausalLM, LlamaTokenizer
-
+from transformers import AutoTokenizer, GenerationConfig, LlamaForCausalLM
 from utils.callbacks import Iteratorize, Stream
 from utils.prompter import Prompter
 
@@ -37,7 +36,7 @@ def main(
     ), "Please specify a --base_model, e.g. --base_model='huggyllama/llama-7b'"
 
     prompter = Prompter(prompt_template)
-    tokenizer = LlamaTokenizer.from_pretrained(base_model)
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
     if device == "cuda":
         model = LlamaForCausalLM.from_pretrained(
             base_model,
@@ -81,8 +80,8 @@ def main(
         model.half()  # seems to fix bugs for some users.
 
     model.eval()
-    if torch.__version__ >= "2" and sys.platform != "win32":
-        model = torch.compile(model)
+    # if torch.__version__ >= "2" and sys.platform != "win32":
+    #     model = torch.compile(model)
 
     def evaluate(
         instruction,
