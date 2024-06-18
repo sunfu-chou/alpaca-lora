@@ -20,7 +20,7 @@ from peft import (
     prepare_model_for_kbit_training,
     set_peft_model_state_dict,
 )
-from transformers import LlamaForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from utils.prompter import Prompter
 
@@ -108,12 +108,13 @@ def train(
         os.environ["WANDB_WATCH"] = wandb_watch
     if len(wandb_log_model) > 0:
         os.environ["WANDB_LOG_MODEL"] = wandb_log_model
-
-    model = LlamaForCausalLM.from_pretrained(
+    
+    quantization_config = transformers.BitsAndBytesConfig(load_in_8bit=True)
+    model = AutoModelForCausalLM.from_pretrained(
         base_model,
-        load_in_8bit=True,
         torch_dtype=torch.float16,
         device_map=device_map,
+        quantization_config=quantization_config,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -236,22 +237,22 @@ def train(
         args=transformers.TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
-            warmup_steps=100,
+            warmup_steps=10,
             num_train_epochs=num_epochs,
             learning_rate=learning_rate,
             fp16=True,
-            logging_steps=10,
+            logging_steps=1,
             optim="adamw_torch",
-            evaluation_strategy="steps" if val_set_size > 0 else "no",
+            eval_strategy="steps" if val_set_size > 0 else "no",
             save_strategy="steps",
             eval_steps=200 if val_set_size > 0 else None,
-            save_steps=200,
+            save_steps=1,
             output_dir=output_dir,
             save_total_limit=3,
             load_best_model_at_end=True if val_set_size > 0 else False,
             ddp_find_unused_parameters=False if ddp else None,
             group_by_length=group_by_length,
-            report_to="wandb" if use_wandb else None,
+            report_to="tensorboard" if use_wandb else None,
             run_name=wandb_run_name if use_wandb else None,
         ),
         data_collator=transformers.DataCollatorForSeq2Seq(
@@ -260,16 +261,15 @@ def train(
     )
     model.config.use_cache = False
 
-    old_state_dict = model.state_dict
-    model.state_dict = (
-        lambda self, *_, **__: get_peft_model_state_dict(
-            self, old_state_dict()
-        )
-    ).__get__(model, type(model))
+    # old_state_dict = model.state_dict
+    # model.state_dict = (
+    #     lambda self, *_, **__: get_peft_model_state_dict(
+    #         self, old_state_dict()
+    #     )
+    # ).__get__(model, type(model))
 
-    if torch.__version__ >= "2" and sys.platform != "win32":
-        model = torch.compile(model)
-
+    # if torch.__version__ >= "2" and sys.platform != "win32":
+    #     model = torch.compile(model)
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     model.save_pretrained(output_dir)
