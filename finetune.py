@@ -13,15 +13,9 @@ import torch.nn as nn
 import bitsandbytes as bnb
 """
 
-from peft import (
-    LoraConfig,
-    get_peft_model,
-    get_peft_model_state_dict,
-    prepare_model_for_kbit_training,
-    set_peft_model_state_dict,
-)
+from peft import (LoraConfig, get_peft_model, prepare_model_for_kbit_training,
+                  set_peft_model_state_dict)
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
 from utils.prompter import Prompter
 
 
@@ -223,7 +217,7 @@ def train(
         )
     else:
         train_data = data["train"].shuffle().map(generate_and_tokenize_prompt)
-        val_data = None
+        val_data = data["test"].shuffle().map(generate_and_tokenize_prompt)
 
     if not ddp and torch.cuda.device_count() > 1:
         # keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
@@ -245,10 +239,10 @@ def train(
             optim="adamw_torch",
             eval_strategy="steps" if val_set_size > 0 else "no",
             save_strategy="steps",
-            eval_steps=200 if val_set_size > 0 else None,
+            eval_steps=1 if val_set_size > 0 else None,
             save_steps=1,
             output_dir=output_dir,
-            save_total_limit=3,
+            save_total_limit=100,
             load_best_model_at_end=True if val_set_size > 0 else False,
             ddp_find_unused_parameters=False if ddp else None,
             group_by_length=group_by_length,
