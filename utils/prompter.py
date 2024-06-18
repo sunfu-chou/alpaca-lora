@@ -3,6 +3,7 @@ A dedicated helper to manage templates and prompt building.
 """
 
 import json
+import os
 import os.path as osp
 from typing import Union
 
@@ -15,15 +16,15 @@ class Prompter(object):
         if not template_name:
             # Enforce the default here, so the constructor can be called with '' and will not break.
             template_name = "alpaca"
-        file_name = osp.join("templates", f"{template_name}.json")
+        current_dir = osp.dirname(osp.abspath(__file__))
+        parent_dir = osp.abspath(osp.join(current_dir, os.pardir))
+        file_name = osp.join(parent_dir, "templates", f"{template_name}.json")
         if not osp.exists(file_name):
             raise ValueError(f"Can't read {file_name}")
         with open(file_name) as fp:
             self.template = json.load(fp)
         if self._verbose:
-            print(
-                f"Using prompt template {template_name}: {self.template['description']}"
-            )
+            print(f"Using prompt template {template_name}: {self.template['description']}")
 
     def generate_prompt(
         self,
@@ -34,13 +35,9 @@ class Prompter(object):
         # returns the full prompt from instruction and optional input
         # if a label (=response, =output) is provided, it's also appended.
         if input:
-            res = self.template["prompt_input"].format(
-                instruction=instruction, input=input
-            )
+            res = self.template["prompt_input"].format(instruction=instruction, input=input)
         else:
-            res = self.template["prompt_no_input"].format(
-                instruction=instruction
-            )
+            res = self.template["prompt_no_input"].format(instruction=instruction)
         if label:
             res = f"{res}{label}"
         if self._verbose:
